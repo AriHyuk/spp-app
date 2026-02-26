@@ -19,15 +19,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (empty($username) || empty($password)) {
         $error = '⚠️ Username dan password harus diisi!';
     } else {
-        // QUERY LAMA/BIASA (Cek username DAN password sekaligus)
-        // Pastikan password di database adalah text biasa (bukan hash)
-        $query = "SELECT * FROM tb_petugas WHERE username='$username' AND password='$password'";
-        $result = mysqli_query($conn, $query);
-        $cek = mysqli_num_rows($result);
-
-        if ($cek > 0) {
+        // Security: Menggunakan Prepared Statements untuk mencegah SQL Injection
+        $stmt = $conn->prepare("SELECT * FROM tb_petugas WHERE username=? AND password=?");
+        // Bind parameter s (string) untuk username dan password
+        $stmt->bind_param("ss", $username, $password);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($result->num_rows > 0) {
             // Data ditemukan, ambil datanya
-            $data = mysqli_fetch_assoc($result);
+            $data = $result->fetch_assoc();
 
             // Set Session
             $_SESSION['id_petugas'] = $data['id_petugas'];
