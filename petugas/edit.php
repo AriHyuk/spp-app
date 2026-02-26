@@ -8,60 +8,59 @@ if (!isset($_SESSION['id_petugas'])) {
     exit();
 }
 
-$error = '';
-$success = '';
-
 // Cek ID di URL
 if (!isset($_GET['id_petugas'])) {
     header("Location: index.php");
     exit();
 }
 
-$id_petugas = mysqli_real_escape_string($conn, $_GET['id_petugas']);
-$result = mysqli_query($conn, "SELECT * FROM tb_petugas WHERE id_petugas='$id_petugas' LIMIT 1");
+$id_petugas = trim($_GET['id_petugas']);
 
-if (mysqli_num_rows($result) == 0) {
+// Prepare statement untuk mendapatkan data petugas
+$stmt_get = $conn->prepare("SELECT * FROM tb_petugas WHERE id_petugas=? LIMIT 1");
+$stmt_get->bind_param("i", $id_petugas);
+$stmt_get->execute();
+$result = $stmt_get->get_result();
+
+if ($result->num_rows == 0) {
     header("Location: index.php");
     exit();
 }
 
-$row = mysqli_fetch_assoc($result);
+$row = $result->fetch_assoc();
 
 // Proses Update Data
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $nama_petugas = mysqli_real_escape_string($conn, trim($_POST['nama_petugas']));
-    $username = mysqli_real_escape_string($conn, trim($_POST['username']));
-    $password = trim($_POST['password']); // Password mentah
-    $level = mysqli_real_escape_string($conn, trim($_POST['level']));
+    $nama_petugas = trim($_POST['nama_petugas']);
+    $username = trim($_POST['username']);
+    $password = trim($_POST['password']);
+    $level = trim($_POST['level']);
 
     if (empty($nama_petugas) || empty($username) || empty($level)) {
-        $error = '⚠️ Nama, Username, dan Level harus diisi!';
+        $error = '⚠️ Nama, Username, dan Hak Akses harus diisi!';
     } else {
         // Cek username tidak duplikat (kecuali punya sendiri)
-        $cek = mysqli_query($conn, "SELECT id_petugas FROM tb_petugas WHERE username='$username' AND id_petugas != '$id_petugas'");
+        $stmt_cek = $conn->prepare("SELECT id_petugas FROM tb_petugas WHERE username=? AND id_petugas != ?");
+        $stmt_cek->bind_param("si", $username, $id_petugas);
+        $stmt_cek->execute();
+        $cek = $stmt_cek->get_result();
         
-        if (mysqli_num_rows($cek) > 0) {
+        if ($cek->num_rows > 0) {
             $error = '❌ Username sudah digunakan petugas lain!';
         } else {
-            // Logika Update Password (TANPA HASH)
+            // Update Data Menggunakan Prepared Statement
             if (!empty($password)) {
-                // Jika password diisi, update semuanya termasuk password
-                $query = "UPDATE tb_petugas SET 
-                          nama_petugas='$nama_petugas',
-                          username='$username', 
-                          password='$password', 
-                          level='$level' 
-                          WHERE id_petugas='$id_petugas'";
+                // Hash password terlebih dahulu
+                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+                $stmt_update = $conn->prepare("UPDATE tb_petugas SET nama_petugas=?, username=?, password=?, level=? WHERE id_petugas=?");
+                $stmt_update->bind_param("ssssi", $nama_petugas, $username, $hashed_password, $level, $id_petugas);
             } else {
-                // Jika password kosong, jangan ubah password lama
-                $query = "UPDATE tb_petugas SET 
-                          nama_petugas='$nama_petugas',
-                          username='$username', 
-                          level='$level' 
-                          WHERE id_petugas='$id_petugas'";
+                // Jika password kosong, update field lainnya saja
+                $stmt_update = $conn->prepare("UPDATE tb_petugas SET nama_petugas=?, username=?, level=? WHERE id_petugas=?");
+                $stmt_update->bind_param("sssi", $nama_petugas, $username, $level, $id_petugas);
             }
 
-            if (mysqli_query($conn, $query)) {
+            if ($stmt_update->execute()) {
                 $success = '✅ Data petugas berhasil diperbarui!';
                 // Refresh data di form
                 $row['nama_petugas'] = $nama_petugas;
@@ -71,37 +70,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 // Redirect otomatis
                 echo "<meta http-equiv='refresh' content='1;url=index.php'>";
             } else {
-                $error = '❌ Gagal update: ' . mysqli_error($conn);
+                $error = '❌ Gagal update data petugas.';
             }
         }
     }
 }
+
+$page_title = 'Edit Petugas';
+include '../includes/header.php';
+include '../includes/sidebar.php';
 ?>
 
-<!DOCTYPE html>
-<html lang="id">
+<main class="main-content">
+    <div class="d-md-none mb-4">
+        <button class="btn btn-primary" id="sidebarToggle">
+            <i class="bi bi-list"></i> Menu
+        </button>
+    </div>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Petugas</title>
-    <link href="../assets/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
-</head>
-
-<body class="bg-light">
-
-    <nav class="navbar navbar-dark bg-primary mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="../index.php">SPP Dashboard</a>
-        </div>
-    </nav>
-
-    <div class="container">
+    <div class="container-fluid mb-5">
         <div class="row justify-content-center">
-            <div class="col-md-6">
-                <div class="card shadow-sm border-0">
-                    <div class="card-header bg-white py-3">
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 rounded-3">
+                    <div class="card-header bg-white py-3 border-bottom">
                         <h5 class="mb-0 fw-bold text-primary">
                             <i class="bi bi-pencil-square me-2"></i>Edit Data Petugas
                         </h5>
@@ -109,52 +100,52 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <div class="card-body p-4">
 
                         <?php if ($error): ?>
-                        <div class="alert alert-danger alert-dismissible fade show">
-                            <?= $error; ?>
+                        <div class="alert alert-danger alert-dismissible fade show shadow-sm">
+                            <i class="bi bi-exclamation-circle me-2"></i><?= $error; ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                         <?php endif; ?>
 
                         <?php if ($success): ?>
-                        <div class="alert alert-success alert-dismissible fade show">
-                            <?= $success; ?>
+                        <div class="alert alert-success alert-dismissible fade show shadow-sm">
+                            <i class="bi bi-check-circle me-2"></i><?= $success; ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                         <?php endif; ?>
 
                         <form method="POST">
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Nama Petugas</label>
+                                <label class="form-label fw-bold small text-muted text-uppercase">Nama Lengkap</label>
                                 <input type="text" class="form-control" name="nama_petugas" required
-                                    value="<?= $row['nama_petugas']; ?>">
+                                    value="<?= htmlspecialchars($row['nama_petugas']); ?>">
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Username</label>
+                                <label class="form-label fw-bold small text-muted text-uppercase">Username</label>
                                 <input type="text" class="form-control" name="username" required
-                                    value="<?= $row['username']; ?>">
+                                    value="<?= htmlspecialchars($row['username']); ?>">
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Password Baru</label>
-                                <input type="text" class="form-control" name="password"
-                                    placeholder="Kosongkan jika tidak ingin ganti password">
-                                <div class="form-text text-muted">Password akan disimpan tanpa enkripsi.</div>
+                                <label class="form-label fw-bold small text-muted text-uppercase">Password Baru</label>
+                                <input type="password" class="form-control bg-light" name="password"
+                                    placeholder="Isi jika ingin mengganti password">
+                                <div class="form-text text-secondary">Kosongkan jika tidak ingin mengubah password yang lama. Password akan dienkripsi secara aman.</div>
                             </div>
 
                             <div class="mb-4">
-                                <label class="form-label fw-bold">Level Akses</label>
-                                <select class="form-select" name="level" required>
-                                    <option value="admin" <?= ($row['level'] == 'admin') ? 'selected' : ''; ?>>Admin
-                                    </option>
-                                    <option value="petugas" <?= ($row['level'] == 'petugas') ? 'selected' : ''; ?>>
-                                        Petugas</option>
+                                <label class="form-label fw-bold small text-muted text-uppercase">Hak Akses</label>
+                                <select class="form-select border-primary bg-light" name="level" required>
+                                    <option value="admin" <?= ($row['level'] == 'admin') ? 'selected' : ''; ?>>Administrator (Akses Penuh)</option>
+                                    <option value="petugas" <?= ($row['level'] == 'petugas') ? 'selected' : ''; ?>>Petugas (Akses Terbatas)</option>
                                 </select>
                             </div>
 
-                            <div class="d-flex justify-content-between">
-                                <a href="index.php" class="btn btn-secondary px-4">Batal</a>
-                                <button type="submit" class="btn btn-primary px-4">
+                            <hr class="my-4">
+
+                            <div class="d-flex justify-content-end gap-2">
+                                <a href="index.php" class="btn btn-light px-4 border">Batal</a>
+                                <button type="submit" class="btn btn-primary px-4 shadow-sm">
                                     <i class="bi bi-save me-2"></i>Simpan Perubahan
                                 </button>
                             </div>
@@ -165,8 +156,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
         </div>
     </div>
+</main>
 
-    <script src="../assets/bootstrap/js/bootstrap.bundle.min.js"></script>
-</body>
-
-</html>
+<?php include '../includes/footer.php'; ?>

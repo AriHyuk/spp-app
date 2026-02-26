@@ -12,75 +12,79 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $username = mysqli_real_escape_string($conn, trim($_POST['username']));
+    $nama_petugas = trim($_POST['nama_petugas']);
+    $username = trim($_POST['username']);
     $password = trim($_POST['password']);
-    $level = mysqli_real_escape_string($conn, trim($_POST['level']));
+    $level = trim($_POST['level']);
 
-    if (empty($username) || empty($password) || empty($level)) {
-        $error = '⚠️ Semua field harus diisi!';
+    if (empty($nama_petugas) || empty($username) || empty($password) || empty($level)) {
+        $error = '⚠️ Semua kolom harus diisi!';
     } else if (strlen($password) < 5) {
         $error = '⚠️ Password minimal 5 karakter!';
     } else {
         // Cek username sudah ada
-        $cek = mysqli_query($conn, "SELECT id_petugas FROM tb_petugas WHERE username='$username' LIMIT 1");
-        if (mysqli_num_rows($cek) > 0) {
+        $stmt_cek = $conn->prepare("SELECT id_petugas FROM tb_petugas WHERE username=? LIMIT 1");
+        $stmt_cek->bind_param("s", $username);
+        $stmt_cek->execute();
+        $cek = $stmt_cek->get_result();
+        
+        if ($cek->num_rows > 0) {
             $error = '❌ Username sudah terdaftar!';
         } else {
-            // Generate ID otomatis
+            // Generate ID otomatis (bisa null jika auto-increment, tapi kita ikuti flow lama jika ID adalah int)
             $query_id = "SELECT MAX(CAST(id_petugas AS UNSIGNED)) as max_id FROM tb_petugas";
             $result_id = mysqli_query($conn, $query_id);
             $row_id = mysqli_fetch_assoc($result_id);
             $id_petugas = ($row_id['max_id'] ?? 0) + 1;
             
-            // Hash password dengan password_hash
+            // Hash password
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
             
-            // Insert tanpa hash password (plaintext)
-            $insert_query = "INSERT INTO tb_petugas (id_petugas, username, password, level) 
-                           VALUES ('$id_petugas', '$username', '$hashed_password', '$level')";
+            // Insert menggunakan prepared statement
+            $stmt_insert = $conn->prepare("INSERT INTO tb_petugas (id_petugas, username, password, nama_petugas, level) VALUES (?, ?, ?, ?, ?)");
+            $stmt_insert->bind_param("issss", $id_petugas, $username, $hashed_password, $nama_petugas, $level);
             
-            if (mysqli_query($conn, $insert_query)) {
+            if ($stmt_insert->execute()) {
                 $success = '✅ Petugas berhasil ditambahkan!';
                 $_POST = array();
-                // Redirect setelah 2 detik
-                header("Refresh: 2; url=index.php");
+                echo "<meta http-equiv='refresh' content='2;url=index.php'>";
             } else {
-                $error = '❌ Error: ' . mysqli_error($conn);
+                $error = '❌ Error saat menyimpan data.';
             }
         }
     }
 }
+
+$page_title = 'Tambah Petugas';
+include '../includes/header.php';
+include '../includes/sidebar.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tambah Petugas</title>
-    <?php include '../includes/styles.php'; ?>
-</head>
+<main class="main-content">
+    <div class="d-md-none mb-4">
+        <button class="btn btn-primary" id="sidebarToggle">
+            <i class="bi bi-list"></i> Menu
+        </button>
+    </div>
 
-<body>
-    <?php include '../includes/header.php'; ?>
-
-    <div class="container py-5">
+    <div class="container-fluid mb-5">
         <div class="row justify-content-center">
             <div class="col-lg-6">
-                <div class="card shadow-sm">
-                    <div class="card-header" style="background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);">
-                        <h5 class="mb-0 text-white"><i class="bi bi-person-plus me-2"></i> Tambah Petugas</h5>
+                <div class="card shadow-sm border-0 rounded-3">
+                    <div class="card-header bg-white py-3 border-bottom">
+                        <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-person-plus-fill me-2"></i>Tambah Data Petugas</h5>
                     </div>
                     <div class="card-body p-4">
+
                         <?php if ($error): ?>
-                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <div class="alert alert-danger alert-dismissible fade show shadow-sm">
                             <i class="bi bi-exclamation-circle me-2"></i><?= $error; ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                         <?php endif; ?>
 
                         <?php if ($success): ?>
-                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <div class="alert alert-success alert-dismissible fade show shadow-sm">
                             <i class="bi bi-check-circle me-2"></i><?= $success; ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
@@ -88,46 +92,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                         <form method="POST">
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Username</label>
-                                <input type="text" class="form-control" name="username" placeholder="Contoh: admin2"
-                                    required value="<?= isset($_POST['username']) ? $_POST['username'] : ''; ?>">
-                                <small class="text-muted">Harus unik</small>
+                                <label class="form-label fw-bold small text-muted text-uppercase">Nama Lengkap</label>
+                                <input type="text" class="form-control" name="nama_petugas" required
+                                    value="<?= isset($_POST['nama_petugas']) ? htmlspecialchars($_POST['nama_petugas']) : ''; ?>" placeholder="Nama asil petugas">
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Password</label>
-                                <input type="password" class="form-control" name="password"
-                                    placeholder="Minimal 5 karakter" required>
-                                <small class="text-muted">Minimal 5 karakter</small>
+                                <label class="form-label fw-bold small text-muted text-uppercase">Username</label>
+                                <input type="text" class="form-control" name="username" required
+                                    value="<?= isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>" placeholder="Username untuk login">
+                                <small class="text-secondary">Harus unik, tidak boleh sama dengan petugas lain.</small>
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Level</label>
-                                <select class="form-select" name="level" required>
+                                <label class="form-label fw-bold small text-muted text-uppercase">Password</label>
+                                <input type="password" class="form-control" name="password" required
+                                    placeholder="Minimal 5 karakter">
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-bold small text-muted text-uppercase">Hak Akses</label>
+                                <select class="form-select border-primary bg-light" name="level" required>
                                     <option value="">-- Pilih Level --</option>
-                                    <option value="admin"
-                                        <?= (isset($_POST['level']) && $_POST['level'] == 'admin') ? 'selected' : ''; ?>>
-                                        Admin</option>
-                                    <option value="petugas"
-                                        <?= (isset($_POST['level']) && $_POST['level'] == 'petugas') ? 'selected' : ''; ?>>
-                                        Petugas</option>
+                                    <option value="admin" <?= (isset($_POST['level']) && $_POST['level'] == 'admin') ? 'selected' : ''; ?>>Administrator (Akses Penuh)</option>
+                                    <option value="petugas" <?= (isset($_POST['level']) && $_POST['level'] == 'petugas') ? 'selected' : ''; ?>>Petugas (Akses Terbatas)</option>
                                 </select>
                             </div>
 
-                            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                                <a href="index.php" class="btn btn-light px-4">Batal</a>
-                                <button type="submit" class="btn btn-primary px-4">
-                                    <i class="bi bi-save me-1"></i> Simpan
-                                </button>
+                            <hr class="my-4">
+
+                            <div class="d-flex justify-content-end gap-2">
+                                <a href="index.php" class="btn btn-light px-4 border">Batal</a>
+                                <button type="submit" class="btn btn-primary px-4 shadow-sm"><i class="bi bi-save me-1"></i> Simpan Petugas</button>
                             </div>
                         </form>
+
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</main>
 
-    <script src="../assets/bootstrap/js/bootstrap.bundle.min.js"></script>
-</body>
-
-</html>
+<?php include '../includes/footer.php'; ?>

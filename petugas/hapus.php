@@ -13,23 +13,28 @@ if (!isset($_GET['id_petugas'])) {
     exit();
 }
 
-$id_petugas = mysqli_real_escape_string($conn, $_GET['id_petugas']);
+$id_petugas = $_GET['id_petugas'];
 
 // Verifikasi data ada
-$result = mysqli_query($conn, "SELECT * FROM tb_petugas WHERE id_petugas='$id_petugas' LIMIT 1");
-if (mysqli_num_rows($result) == 0) {
+$stmt_cek = $conn->prepare("SELECT id_petugas FROM tb_petugas WHERE id_petugas=? LIMIT 1");
+$stmt_cek->bind_param("i", $id_petugas);
+$stmt_cek->execute();
+$result = $stmt_cek->get_result();
+
+if ($result->num_rows == 0) {
     header("Location: index.php?error=Data tidak ditemukan");
     exit();
 }
 
 // Hapus petugas
-$query = "DELETE FROM tb_petugas WHERE id_petugas='$id_petugas' LIMIT 1";
+$stmt_del = $conn->prepare("DELETE FROM tb_petugas WHERE id_petugas=? LIMIT 1");
+$stmt_del->bind_param("i", $id_petugas);
 
-if (mysqli_query($conn, $query)) {
+if ($stmt_del->execute()) {
     header("Location: index.php?success=Petugas berhasil dihapus!");
     exit();
 } else {
-    $error = "Error: " . mysqli_error($conn);
+    $error = "Error: Terjadi kesalahan saat menghapus data.";
     header("Location: index.php?error=" . urlencode($error));
     exit();
 }
