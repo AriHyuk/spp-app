@@ -5,60 +5,63 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $id_spp = mysqli_real_escape_string($conn, $_POST['id_spp']);
-    $tahun = mysqli_real_escape_string($conn, $_POST['tahun']);
-    $nominal = mysqli_real_escape_string($conn, $_POST['nominal']);
+    $id_spp = trim($_POST['id_spp']);
+    $tahun = trim($_POST['tahun']);
+    $nominal = trim($_POST['nominal']);
 
     if (empty($id_spp) || empty($tahun) || empty($nominal)) {
         $error = 'Semua field harus diisi!';
     } else {
-        $cek = mysqli_query($conn, "SELECT * FROM tb_spp WHERE id_spp='$id_spp'");
-        if (mysqli_num_rows($cek) > 0) {
+        $stmt_cek = $conn->prepare("SELECT id_spp FROM tb_spp WHERE id_spp=?");
+        $stmt_cek->bind_param("s", $id_spp);
+        $stmt_cek->execute();
+        $cek = $stmt_cek->get_result();
+        
+        if ($cek->num_rows > 0) {
             $error = 'ID SPP sudah terdaftar!';
         } else {
-            $query = "INSERT INTO tb_spp (id_spp, tahun, nominal) 
-                      VALUES ('$id_spp', '$tahun', '$nominal')";
+            $stmt_insert = $conn->prepare("INSERT INTO tb_spp (id_spp, tahun, nominal) VALUES (?, ?, ?)");
+            $stmt_insert->bind_param("ssi", $id_spp, $tahun, $nominal);
             
-            if (mysqli_query($conn, $query)) {
+            if ($stmt_insert->execute()) {
                 $success = 'Data SPP berhasil ditambahkan!';
                 $_POST = array();
             } else {
-                $error = 'Error: ' . mysqli_error($conn);
+                $error = 'Error saat menyimpan data.';
             }
         }
     }
 }
+
+$page_title = 'Tambah SPP';
+include '../includes/header.php';
+include '../includes/sidebar.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tambah SPP</title>
-    <?php include '../includes/styles.php'; ?>
-</head>
+<main class="main-content">
+    <div class="d-md-none mb-4">
+        <button class="btn btn-primary" id="sidebarToggle">
+            <i class="bi bi-list"></i> Menu
+        </button>
+    </div>
 
-<body>
-    <?php include '../includes/header.php'; ?>
-
-    <div class="container py-5">
+    <div class="container-fluid mb-5">
         <div class="row justify-content-center">
-            <div class="col-md-5">
-                <div class="card">
-                    <div class="card-header" style="background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);">
-                        <h5 class="mb-0 text-white"><i class="bi bi-plus-lg me-2"></i> Tambah SPP Baru</h5>
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 rounded-3">
+                    <div class="card-header bg-white py-3 border-bottom">
+                        <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-plus-lg me-2"></i> Tambah SPP Baru</h5>
                     </div>
                     <div class="card-body p-4">
                         <?php if ($error): ?>
-                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
                                 <i class="bi bi-exclamation-circle me-2"></i><?= $error; ?>
                                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                             </div>
                         <?php endif; ?>
 
                         <?php if ($success): ?>
-                            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
                                 <i class="bi bi-check-circle me-2"></i><?= $success; ?>
                                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                             </div>
@@ -66,29 +69,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                         <form method="POST">
                             <div class="mb-3">
-                                <label class="form-label fw-bold">ID SPP</label>
-                                <input type="text" class="form-control" name="id_spp" placeholder="Contoh: SPP-001" required value="<?= isset($_POST['id_spp']) ? $_POST['id_spp'] : ''; ?>">
-                                <small class="text-muted">ID SPP harus unik</small>
+                                <label class="form-label fw-bold small text-muted text-uppercase">ID SPP</label>
+                                <input type="text" class="form-control" name="id_spp" placeholder="Contoh: SPP-001" required value="<?= isset($_POST['id_spp']) ? htmlspecialchars($_POST['id_spp']) : ''; ?>">
+                                <small class="text-secondary">Tidak boleh sama dengan ID lain</small>
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Tahun</label>
-                                <input type="number" class="form-control" name="tahun" placeholder="Contoh: 2024" required value="<?= isset($_POST['tahun']) ? $_POST['tahun'] : ''; ?>">
+                                <label class="form-label fw-bold small text-muted text-uppercase">Tahun Ajaran</label>
+                                <input type="number" class="form-control" name="tahun" placeholder="Contoh: 2024" required value="<?= isset($_POST['tahun']) ? htmlspecialchars($_POST['tahun']) : ''; ?>">
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Nominal (Rp)</label>
-                                <input type="number" class="form-control" name="nominal" placeholder="Contoh: 500000" required value="<?= isset($_POST['nominal']) ? $_POST['nominal'] : ''; ?>">
-                                <small class="text-muted">Masukkan nilai tanpa titik atau koma</small>
+                            <div class="mb-4">
+                                <label class="form-label fw-bold small text-muted text-uppercase">Nominal Bayar (Rp)</label>
+                                <input type="number" class="form-control" name="nominal" placeholder="Contoh: 500000" required value="<?= isset($_POST['nominal']) ? htmlspecialchars($_POST['nominal']) : ''; ?>">
+                                <small class="text-secondary">Masukkan nilai tanpa titik atau koma (hanya angka)</small>
                             </div>
 
-                            <div class="d-grid gap-2">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="bi bi-check-lg me-1"></i> Simpan
-                                </button>
-                                <a href="index.php" class="btn btn-outline-secondary">
-                                    <i class="bi bi-x-lg me-1"></i> Batal
+                            <hr class="my-4">
+
+                            <div class="d-flex justify-content-end gap-2">
+                                <a href="index.php" class="btn btn-light border px-4">
+                                    Batal
                                 </a>
+                                <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                                    <i class="bi bi-save me-1"></i> Simpan Data
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -96,8 +101,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
         </div>
     </div>
+</main>
 
-    <script src="../assets/bootstrap/js/bootstrap.bundle.min.js"></script>
-</body>
-
-</html>
+<?php include '../includes/footer.php'; ?>

@@ -9,68 +9,69 @@ if (!isset($_GET['id_spp'])) {
     exit();
 }
 
-$id_spp = mysqli_real_escape_string($conn, $_GET['id_spp']);
-$result = mysqli_query($conn, "SELECT * FROM tb_spp WHERE id_spp='$id_spp'");
+$id_spp = trim($_GET['id_spp']);
 
-if (mysqli_num_rows($result) == 0) {
+$stmt_get = $conn->prepare("SELECT * FROM tb_spp WHERE id_spp=?");
+$stmt_get->bind_param("s", $id_spp);
+$stmt_get->execute();
+$result = $stmt_get->get_result();
+
+if ($result->num_rows == 0) {
     header("Location: index.php");
     exit();
 }
 
-$row = mysqli_fetch_assoc($result);
+$row = $result->fetch_assoc();
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $tahun = mysqli_real_escape_string($conn, $_POST['tahun']);
-    $nominal = mysqli_real_escape_string($conn, $_POST['nominal']);
+    $tahun = trim($_POST['tahun']);
+    $nominal = trim($_POST['nominal']);
 
     if (empty($tahun) || empty($nominal)) {
         $error = 'Semua field harus diisi!';
     } else {
-        $query = "UPDATE tb_spp SET 
-                  tahun='$tahun',
-                  nominal='$nominal'
-                  WHERE id_spp='$id_spp'";
+        $stmt_update = $conn->prepare("UPDATE tb_spp SET tahun=?, nominal=? WHERE id_spp=?");
+        $stmt_update->bind_param("sis", $tahun, $nominal, $id_spp);
         
-        if (mysqli_query($conn, $query)) {
+        if ($stmt_update->execute()) {
             $success = 'Data SPP berhasil diperbarui!';
-            $result = mysqli_query($conn, "SELECT * FROM tb_spp WHERE id_spp='$id_spp'");
-            $row = mysqli_fetch_assoc($result);
+            $row['tahun'] = $tahun;
+            $row['nominal'] = $nominal;
         } else {
-            $error = 'Error: ' . mysqli_error($conn);
+            $error = 'Error saat memperbarui data.';
         }
     }
 }
+
+$page_title = 'Edit SPP';
+include '../includes/header.php';
+include '../includes/sidebar.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit SPP</title>
-    <?php include '../includes/styles.php'; ?>
-</head>
+<main class="main-content">
+    <div class="d-md-none mb-4">
+        <button class="btn btn-primary" id="sidebarToggle">
+            <i class="bi bi-list"></i> Menu
+        </button>
+    </div>
 
-<body>
-    <?php include '../includes/header.php'; ?>
-
-    <div class="container py-5">
+    <div class="container-fluid mb-5">
         <div class="row justify-content-center">
-            <div class="col-md-5">
-                <div class="card">
-                    <div class="card-header" style="background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);">
-                        <h5 class="mb-0 text-white"><i class="bi bi-pencil me-2"></i> Edit SPP</h5>
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 rounded-3">
+                    <div class="card-header bg-white py-3 border-bottom">
+                        <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-pencil-square me-2"></i> Edit Data SPP</h5>
                     </div>
                     <div class="card-body p-4">
                         <?php if ($error): ?>
-                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
                                 <i class="bi bi-exclamation-circle me-2"></i><?= $error; ?>
                                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                             </div>
                         <?php endif; ?>
 
                         <?php if ($success): ?>
-                            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
                                 <i class="bi bi-check-circle me-2"></i><?= $success; ?>
                                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                             </div>
@@ -78,28 +79,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                         <form method="POST">
                             <div class="mb-3">
-                                <label class="form-label fw-bold">ID SPP</label>
-                                <input type="text" class="form-control" value="<?= $row['id_spp']; ?>" disabled>
-                                <small class="text-muted">ID tidak dapat diubah</small>
+                                <label class="form-label fw-bold small text-muted text-uppercase">ID SPP</label>
+                                <input type="text" class="form-control bg-light" value="<?= htmlspecialchars($row['id_spp']); ?>" disabled>
+                                <small class="text-secondary">ID SPP tidak dapat diubah (Read-only)</small>
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Tahun</label>
-                                <input type="number" class="form-control" name="tahun" required value="<?= $row['tahun']; ?>">
+                                <label class="form-label fw-bold small text-muted text-uppercase">Tahun Ajaran</label>
+                                <input type="number" class="form-control" name="tahun" required value="<?= htmlspecialchars($row['tahun']); ?>">
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Nominal (Rp)</label>
-                                <input type="number" class="form-control" name="nominal" required value="<?= $row['nominal']; ?>">
+                            <div class="mb-4">
+                                <label class="form-label fw-bold small text-muted text-uppercase">Nominal Bayar (Rp)</label>
+                                <input type="number" class="form-control" name="nominal" required value="<?= htmlspecialchars($row['nominal']); ?>">
                             </div>
 
-                            <div class="d-grid gap-2">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="bi bi-check-lg me-1"></i> Perbarui
-                                </button>
-                                <a href="index.php" class="btn btn-outline-secondary">
-                                    <i class="bi bi-x-lg me-1"></i> Batal
+                            <hr class="my-4">
+
+                            <div class="d-flex justify-content-end gap-2">
+                                <a href="index.php" class="btn btn-light px-4 border">
+                                    Batal
                                 </a>
+                                <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                                    <i class="bi bi-save me-1"></i> Simpan Perubahan
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -107,8 +110,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
         </div>
     </div>
+</main>
 
-    <script src="../assets/bootstrap/js/bootstrap.bundle.min.js"></script>
-</body>
-
-</html>
+<?php include '../includes/footer.php'; ?>
