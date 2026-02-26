@@ -2,7 +2,7 @@
 
 ![SPP Online Banner](https://via.placeholder.com/1200x400?text=SPP+Online+Application)
 
-Aplikasi **Sistem Informasi Pembayaran SPP (Sumbangan Pembinaan Pendidikan)** berbasis web yang dirancang untuk memudahkan pihak sekolah dalam mengelola data siswa, tagihan, dan rekaman historis transaksi pembayaran SPP. Aplikasi ini dibangun dengan fokus pada **Clean Code, Modularity, dan Security (SQL Injection Prevention)**, menjadikannya standar yang kuat untuk sistem pencatatan level sekolah.
+Aplikasi **Sistem Informasi Pembayaran SPP (Sumbangan Pembinaan Pendidikan)** berbasis web yang dirancang untuk memudahkan pihak sekolah dalam mengelola data siswa, tagihan, dan rekaman historis transaksi pembayaran SPP. Aplikasi ini saya bangun dengan fokus pada **Clean Code, Modularity, dan Security (SQL Injection Prevention)**, menjadikannya standar yang kuat untuk sistem pencatatan level sekolah.
 
 ## 🚀 Fitur Utama
 
@@ -21,13 +21,13 @@ Aplikasi **Sistem Informasi Pembayaran SPP (Sumbangan Pembinaan Pendidikan)** be
 
 ## 📐 Prinsip Arsitektur (Software Engineering)
 
-Aplikasi ini telah direfaktor untuk memenuhi standar pengembangan perangkat lunak modern:
+Aplikasi ini telah saya refaktor untuk memenuhi standar pengembangan perangkat lunak modern:
 
 1. **Separation of Concerns (SoC):** Pemisahan file konfigurasi (`config/`), layout UI (`includes/`), dan logika modul (`siswa/`, `petugas/`, dll).
 2. **Kredensial Environment (dotenv pattern):** Pengamanan koneksi database melalui variabel Environment terpisah (`.env` dan `koneksi.php`).
 3. **DRY (Don't Repeat Yourself):** Penggunaan komponen template UI interaktif berulang seperti `header`, `sidebar`, dan `footer`.
 
-> Seluruh keputusan restrukturisasi tercatat transparan pada [Architecture Decision Records (ADR)](docs/).
+> Seluruh keputusan restrukturisasi yang saya buat tercatat transparan pada [Architecture Decision Records (ADR)](docs/).
 
 ## ⚙️ Panduan Instalasi (Setup Lengkap)
 
@@ -46,6 +46,7 @@ Aplikasi ini telah direfaktor untuk memenuhi standar pengembangan perangkat luna
 3. **Konfigurasi Environment:**
    - Salin file `.env.example` menjadi `.env`.
    - Sesuaikan konfigurasi database Anda di dalam file `.env`:
+
      ```env
      DB_HOST=localhost
      DB_USER=root
@@ -62,7 +63,7 @@ Aplikasi ini telah direfaktor untuk memenuhi standar pengembangan perangkat luna
 
 ## 📁 Struktur Folder Project
 
-```
+```text
 spp-app/
 ├── assets/          # File statis CSS, JS, Gambar (Bootstrap)
 ├── config/          # Pengaturan database & Environment Loader
@@ -85,4 +86,3 @@ spp-app/
 | _(Silahkan Tambahkan Screenshot)_ | _(Silahkan Tambahkan Screenshot)_ |
 
 ---
-
