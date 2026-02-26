@@ -7,11 +7,9 @@ if (!isset($_SESSION['id_petugas'])) {
     exit();
 }
 
-$tgl_awal = $_GET['tgl_awal'];
-$tgl_akhir = $_GET['tgl_akhir'];
+$tgl_awal = $_GET['tgl_awal'] ?? '';
+$tgl_akhir = $_GET['tgl_akhir'] ?? '';
 
-// --- PERBAIKAN QUERY ---
-// Kita pilih kolom secara manual biar tidak bingung
 $query = "SELECT 
             tb_pembayaran.id_pembayaran,
             tb_pembayaran.tgl_bayar,
@@ -21,18 +19,19 @@ $query = "SELECT
             tb_siswa.nis, 
             tb_kelas.nama_kelas 
           FROM tb_pembayaran 
-          -- Hubungkan Pembayaran ke Siswa berdasarkan NISN
           LEFT JOIN tb_siswa ON tb_pembayaran.nisn = tb_siswa.nisn 
-          -- Hubungkan Siswa ke Kelas berdasarkan ID_KELAS
           LEFT JOIN tb_kelas ON tb_siswa.id_kelas = tb_kelas.id_kelas
-          WHERE tb_pembayaran.tgl_bayar BETWEEN '$tgl_awal' AND '$tgl_akhir'
+          WHERE tb_pembayaran.tgl_bayar BETWEEN ? AND ?
           ORDER BY tb_pembayaran.tgl_bayar ASC";
 
-$result = mysqli_query($conn, $query);
+$stmt = $conn->prepare($query);
 
-// Cek error jika query gagal
-if (!$result) {
-    die("Query Error: " . mysqli_error($conn));
+if ($stmt) {
+    $stmt->bind_param("ss", $tgl_awal, $tgl_akhir);
+    $stmt->execute();
+    $result = $stmt->get_result();
+} else {
+    die("Query Error: " . $conn->error);
 }
 ?>
 
