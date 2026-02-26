@@ -9,18 +9,23 @@ if (!isset($_GET['id_pembayaran'])) {
     exit();
 }
 
-$id_pembayaran = mysqli_real_escape_string($conn, $_GET['id_pembayaran']);
+$id_pembayaran = trim($_GET['id_pembayaran']);
 
-// Ambil data pembayaran dan semua siswa dengan 2 query
-$result = mysqli_query($conn, "SELECT * FROM tb_pembayaran WHERE id_pembayaran='$id_pembayaran' LIMIT 1");
+// Ambil data pembayaran
+$stmt_get = $conn->prepare("SELECT * FROM tb_pembayaran WHERE id_pembayaran=? LIMIT 1");
+$stmt_get->bind_param("s", $id_pembayaran);
+$stmt_get->execute();
+$result = $stmt_get->get_result();
+
+// Ambil semua siswa untuk dropdown
 $siswaResult = mysqli_query($conn, "SELECT nisn, nama FROM tb_siswa ORDER BY nama");
 
-if (mysqli_num_rows($result) == 0) {
+if ($result->num_rows == 0) {
     header("Location: index.php");
     exit();
 }
 
-$row = mysqli_fetch_assoc($result);
+$row = $result->fetch_assoc();
 
 // Convert untuk dropdown
 $siswaList = [];
@@ -29,15 +34,15 @@ while ($siswa = mysqli_fetch_assoc($siswaResult)) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $nisn = mysqli_real_escape_string($conn, trim($_POST['nisn']));
-    $tgl_bayar = mysqli_real_escape_string($conn, trim($_POST['tgl_bayar']));
-    $tgl_terakhir_bayar = mysqli_real_escape_string($conn, trim($_POST['tgl_terakhir_bayar'] ?? ''));
-    $batas_pembayaran = mysqli_real_escape_string($conn, trim($_POST['batas_pembayaran'] ?? ''));
-    $jumlah_bulan = mysqli_real_escape_string($conn, trim($_POST['jumlah_bulan']));
+    $nisn = trim($_POST['nisn']);
+    $tgl_bayar = trim($_POST['tgl_bayar']);
+    $tgl_terakhir_bayar = trim($_POST['tgl_terakhir_bayar'] ?? null);
+    $batas_pembayaran = trim($_POST['batas_pembayaran'] ?? null);
+    $jumlah_bulan = trim($_POST['jumlah_bulan']);
     $nominal_bayar = (int)$_POST['nominal_bayar'];
     $jumlah_bayar = (int)$_POST['jumlah_bayar'];
     $kembalian = (int)($_POST['kembalian'] ?? 0);
-    $status = mysqli_real_escape_string($conn, trim($_POST['status']));
+    $status = trim($_POST['status']);
 
     // Validasi
     if (empty($nisn) || empty($tgl_bayar) || empty($jumlah_bulan) || empty($nominal_bayar) || empty($jumlah_bayar) || empty($status)) {
@@ -50,73 +55,43 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = 'Status tidak valid!';
     } else {
         // Cek apakah NISN ada di database
-        $cekSiswa = mysqli_query($conn, "SELECT nisn FROM tb_siswa WHERE nisn='$nisn' LIMIT 1");
-        if (mysqli_num_rows($cekSiswa) == 0) {
+        $stmt_cek = $conn->prepare("SELECT nisn FROM tb_siswa WHERE nisn=? LIMIT 1");
+        $stmt_cek->bind_param("s", $nisn);
+        $stmt_cek->execute();
+        $cekSiswa = $stmt_cek->get_result();
+        
+        if ($cekSiswa->num_rows == 0) {
             $error = 'NISN tidak terdaftar!';
         } else {
-            $update_query = "UPDATE tb_pembayaran SET 
-                            nisn='$nisn',
-                            tgl_bayar='$tgl_bayar',
-                            tgl_terakhir_bayar='$tgl_terakhir_bayar',
-                            batas_pembayaran='$batas_pembayaran',
-                            jumlah_bulan='$jumlah_bulan',
-                            nominal_bayar='$nominal_bayar',
-                            jumlah_bayar='$jumlah_bayar',
-                            kembalian='$kembalian',
-                            status='$status'
-                            WHERE id_pembayaran='$id_pembayaran'";
+            $tgl_terakhir_bayar_bind = !empty($tgl_terakhir_bayar) ? $tgl_terakhir_bayar : null;
+            $batas_pembayaran_bind = !empty($batas_pembayaran) ? $batas_pembayaran : null;
+
+            $stmt_update = $conn->prepare("UPDATE tb_pembayaran SET nisn=?, tgl_bayar=?, tgl_terakhir_bayar=?, batas_pembayaran=?, jumlah_bulan=?, nominal_bayar=?, jumlah_bayar=?, kembalian=?, status=? WHERE id_pembayaran=?");
+            $stmt_update->bind_param("sssssiiiss", $nisn, $tgl_bayar, $tgl_terakhir_bayar_bind, $batas_pembayaran_bind, $jumlah_bulan, $nominal_bayar, $jumlah_bayar, $kembalian, $status, $id_pembayaran);
             
-            if (mysqli_query($conn, $update_query)) {
+            if ($stmt_update->execute()) {
                 header("Location: index.php?success=Data pembayaran berhasil diperbarui!");
                 exit();
             } else {
-                $error = 'Error: ' . mysqli_error($conn);
+                $error = 'Error saat memperbarui data.';
             }
         }
     }
 }
+
+$page_title = 'Edit Pembayaran';
+include '../includes/header.php';
+include '../includes/sidebar.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Data Pembayaran | SPP Online</title>
-    <link rel="stylesheet" href="../assets/bootstrap/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+<main class="main-content">
+    <div class="d-md-none mb-4">
+        <button class="btn btn-primary" id="sidebarToggle">
+            <i class="bi bi-list"></i> Menu
+        </button>
+    </div>
 
-    <style>
-    :root {
-        --bs-body-bg: #f8f9fa;
-    }
-
-    .card {
-        border: none;
-        border-radius: 0.75rem;
-    }
-
-    .form-label {
-        font-weight: 600;
-        font-size: 0.95rem;
-        color: #2c3e50;
-    }
-
-    .form-control, .form-select {
-        border-radius: 0.5rem;
-        border: 1px solid #ddd;
-    }
-
-    .form-control:focus, .form-select:focus {
-        border-color: #0d6efd;
-        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-    }
-    </style>
-</head>
-
-<body>
-
-    <div class="container py-5">
+    <div class="container-fluid mb-5">
         <div class="row align-items-center mb-4">
             <div class="col-lg-6 col-md-8">
                 <div class="d-flex align-items-center">
@@ -128,51 +103,51 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <nav aria-label="breadcrumb">
                             <ol class="breadcrumb mb-0">
                                 <li class="breadcrumb-item small"><a href="index.php" class="text-decoration-none">Pembayaran</a></li>
-                                <li class="breadcrumb-item small active" aria-current="page">Edit</li>
+                                <li class="breadcrumb-item small active" aria-current="page">Edit Transaksi</li>
                             </ol>
                         </nav>
                     </div>
                 </div>
             </div>
             <div class="col-lg-6 col-md-4 text-md-end mt-3 mt-md-0">
-                <a href="index.php" class="btn btn-secondary px-4 py-2 shadow-sm rounded-pill">
-                    <i class="bi bi-arrow-left me-1"></i> Kembali
+                <a href="index.php" class="btn btn-light px-4 py-2 shadow-sm border rounded-pill">
+                    <i class="bi bi-arrow-left me-1"></i> Kembali ke Daftar
                 </a>
             </div>
         </div>
 
-        <?php if ($error): ?>
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-circle me-2"></i><?= $error; ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
-
-        <?php if ($success): ?>
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle me-2"></i><?= $success; ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
-
         <div class="row">
             <div class="col-lg-8">
-                <div class="card shadow-sm">
+                <div class="card shadow-sm border-0 rounded-3">
                     <div class="card-body p-4">
-                        <form method="POST" action="">
+                        <?php if ($error): ?>
+                            <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+                                <i class="bi bi-exclamation-circle me-2"></i><?= $error; ?>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($success): ?>
+                            <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+                                <i class="bi bi-check-circle me-2"></i><?= $success; ?>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        <?php endif; ?>
+
+                        <form method="POST">
                             <div class="row mb-3">
                                 <div class="col-md-6">
-                                    <label for="id_pembayaran" class="form-label">ID Pembayaran</label>
-                                    <input type="text" class="form-control" id="id_pembayaran" name="id_pembayaran" disabled value="<?= $row['id_pembayaran']; ?>">
-                                    <small class="text-muted">ID tidak dapat diubah</small>
+                                    <label for="id_pembayaran" class="form-label fw-bold small text-muted text-uppercase">ID Pembayaran</label>
+                                    <input type="text" class="form-control bg-light" id="id_pembayaran" name="id_pembayaran" disabled value="<?= htmlspecialchars($row['id_pembayaran']); ?>">
+                                    <small class="text-secondary">ID tidak dapat diubah</small>
                                 </div>
                                 <div class="col-md-6">
-                                    <label for="nisn" class="form-label">NISN Siswa</label>
+                                    <label for="nisn" class="form-label fw-bold small text-muted text-uppercase">NISN Siswa</label>
                                     <select class="form-select" id="nisn" name="nisn" required>
                                         <option value="">-- Pilih NISN --</option>
                                         <?php foreach ($siswaList as $siswa): ?>
-                                            <option value="<?= $siswa['nisn']; ?>" <?= ($row['nisn'] == $siswa['nisn']) ? 'selected' : ''; ?>>
-                                                <?= $siswa['nisn']; ?> - <?= $siswa['nama']; ?>
+                                            <option value="<?= htmlspecialchars($siswa['nisn']); ?>" <?= ($row['nisn'] == $siswa['nisn']) ? 'selected' : ''; ?>>
+                                                <?= htmlspecialchars($siswa['nisn']); ?> - <?= htmlspecialchars($siswa['nama']); ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
@@ -181,47 +156,47 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                             <div class="row mb-3">
                                 <div class="col-md-6">
-                                    <label for="tgl_bayar" class="form-label">Tanggal Pembayaran</label>
-                                    <input type="date" class="form-control" id="tgl_bayar" name="tgl_bayar" required value="<?= $row['tgl_bayar']; ?>">
+                                    <label for="tgl_bayar" class="form-label fw-bold small text-muted text-uppercase">Tanggal Pembayaran</label>
+                                    <input type="date" class="form-control" id="tgl_bayar" name="tgl_bayar" required value="<?= htmlspecialchars($row['tgl_bayar']); ?>">
                                 </div>
                                 <div class="col-md-6">
-                                    <label for="tgl_terakhir_bayar" class="form-label">Tgl Terakhir Bayar (Opsional)</label>
-                                    <input type="date" class="form-control" id="tgl_terakhir_bayar" name="tgl_terakhir_bayar" value="<?= $row['tgl_terakhir_bayar'] ?? ''; ?>">
+                                    <label for="tgl_terakhir_bayar" class="form-label fw-bold small text-muted text-uppercase">Tgl Terakhir Bayar</label>
+                                    <input type="date" class="form-control" id="tgl_terakhir_bayar" name="tgl_terakhir_bayar" value="<?= htmlspecialchars($row['tgl_terakhir_bayar'] ?? ''); ?>">
+                                    <small class="text-secondary">Opsional</small>
                                 </div>
                             </div>
 
                             <div class="row mb-3">
                                 <div class="col-md-6">
-                                    <label for="batas_pembayaran" class="form-label">Batas Pembayaran (Opsional)</label>
-                                    <input type="date" class="form-control" id="batas_pembayaran" name="batas_pembayaran" value="<?= $row['batas_pembayaran'] ?? ''; ?>">
+                                    <label for="batas_pembayaran" class="form-label fw-bold small text-muted text-uppercase">Batas Pembayaran</label>
+                                    <input type="date" class="form-control" id="batas_pembayaran" name="batas_pembayaran" value="<?= htmlspecialchars($row['batas_pembayaran'] ?? ''); ?>">
+                                    <small class="text-secondary">Opsional</small>
                                 </div>
                                 <div class="col-md-6">
-                                    <label for="jumlah_bulan" class="form-label">Jumlah Bulan</label>
-                                    <input type="number" class="form-control" id="jumlah_bulan" name="jumlah_bulan" required value="<?= $row['jumlah_bulan']; ?>">
-                                </div>
-                            </div>
-                                </div>
-                            </div>
-
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label for="nominal_bayar" class="form-label">Nominal Bayar (Rp)</label>
-                                    <input type="number" class="form-control" id="nominal_bayar" name="nominal_bayar" required value="<?= $row['nominal_bayar']; ?>">
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="jumlah_bayar" class="form-label">Jumlah Bayar (Rp)</label>
-                                    <input type="number" class="form-control" id="jumlah_bayar" name="jumlah_bayar" required value="<?= $row['jumlah_bayar']; ?>">
+                                    <label for="jumlah_bulan" class="form-label fw-bold small text-muted text-uppercase">Jumlah Bulan Dibayar</label>
+                                    <input type="number" class="form-control" id="jumlah_bulan" name="jumlah_bulan" required value="<?= htmlspecialchars($row['jumlah_bulan']); ?>">
                                 </div>
                             </div>
 
                             <div class="row mb-3">
                                 <div class="col-md-6">
-                                    <label for="kembalian" class="form-label">Kembalian (Rp)</label>
-                                    <input type="number" class="form-control" id="kembalian" name="kembalian" value="<?= $row['kembalian']; ?>">
+                                    <label for="nominal_bayar" class="form-label fw-bold small text-muted text-uppercase">Tagihan SPP (Rp)</label>
+                                    <input type="number" class="form-control" id="nominal_bayar" name="nominal_bayar" required value="<?= htmlspecialchars($row['nominal_bayar']); ?>">
                                 </div>
                                 <div class="col-md-6">
-                                    <label for="status" class="form-label">Status</label>
-                                    <select class="form-select" id="status" name="status" required>
+                                    <label for="jumlah_bayar" class="form-label fw-bold small text-muted text-uppercase">Uang Dibayarkan (Rp)</label>
+                                    <input type="number" class="form-control" id="jumlah_bayar" name="jumlah_bayar" required value="<?= htmlspecialchars($row['jumlah_bayar']); ?>">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="kembalian" class="form-label fw-bold small text-muted text-uppercase">Kembalian (Rp)</label>
+                                    <input type="number" class="form-control bg-light" id="kembalian" name="kembalian" value="<?= htmlspecialchars($row['kembalian']); ?>">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="status" class="form-label fw-bold small text-muted text-uppercase">Status Pembayaran</label>
+                                    <select class="form-select border-warning" id="status" name="status" required>
                                         <option value="">-- Pilih Status --</option>
                                         <option value="Belum Lunas" <?= ($row['status'] == 'Belum Lunas') ? 'selected' : ''; ?>>Belum Lunas</option>
                                         <option value="Sudah Lunas" <?= ($row['status'] == 'Sudah Lunas') ? 'selected' : ''; ?>>Sudah Lunas</option>
@@ -229,9 +204,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 </div>
                             </div>
 
-                            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                                <a href="index.php" class="btn btn-light px-4">Batal</a>
-                                <button type="submit" class="btn btn-warning px-4">
+                            <hr class="my-4">
+
+                            <div class="d-flex justify-content-end gap-2">
+                                <a href="index.php" class="btn btn-light border px-4">Batal</a>
+                                <button type="submit" class="btn btn-warning px-4 shadow-sm">
                                     <i class="bi bi-save me-1"></i> Update Data
                                 </button>
                             </div>
@@ -241,20 +218,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
 
             <div class="col-lg-4">
-                <div class="card shadow-sm border-0 bg-light">
-                    <div class="card-body">
-                        <h5 class="card-title fw-bold mb-3">
-                            <i class="bi bi-info-circle me-2"></i>Data Saat Ini
-                        </h5>
-                        <ul class="list-unstyled small">
-                            <li class="mb-2"><strong>ID Pembayaran:</strong> <span class="text-primary"><?= $row['id_pembayaran']; ?></span></li>
-                            <li class="mb-2"><strong>NISN:</strong> <span class="text-primary"><?= $row['nisn']; ?></span></li>
-                            <li class="mb-2"><strong>Tanggal Bayar:</strong> <span class="text-primary"><?= date('d M Y', strtotime($row['tgl_bayar'])); ?></span></li>
-                            <li class="mb-2"><strong>Status:</strong> 
-                                <?php if($row['status'] == 'Lunas'): ?>
-                                    <span class="badge bg-success">Lunas</span>
+                <div class="card shadow-sm border-0 border-top border-warning border-4 rounded-3 mt-4 mt-lg-0">
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold mb-3"><i class="bi bi-clock-history me-2 text-warning"></i>Data Saat Ini</h6>
+                        <ul class="text-secondary small list-unstyled mb-0">
+                            <li class="mb-2 d-flex justify-content-between">
+                                <span>ID Pembayaran:</span>
+                                <span class="fw-bold text-dark"><?= htmlspecialchars($row['id_pembayaran']); ?></span>
+                            </li>
+                            <li class="mb-2 d-flex justify-content-between">
+                                <span>NISN Siswa:</span>
+                                <span class="fw-bold text-dark"><?= htmlspecialchars($row['nisn']); ?></span>
+                            </li>
+                            <li class="mb-2 d-flex justify-content-between">
+                                <span>Tanggal Bayar:</span>
+                                <span class="fw-bold text-dark"><?= date('d M Y', strtotime($row['tgl_bayar'])); ?></span>
+                            </li>
+                            <li class="d-flex justify-content-between align-items-center">
+                                <span>Status Terakhir:</span>
+                                <?php if($row['status'] == 'Sudah Lunas' || $row['status'] == 'Lunas'): ?>
+                                    <span class="badge bg-success shadow-sm">Lunas</span>
                                 <?php else: ?>
-                                    <span class="badge bg-warning">Proses</span>
+                                    <span class="badge bg-warning text-dark shadow-sm">Belum Lunas</span>
                                 <?php endif; ?>
                             </li>
                         </ul>
@@ -263,8 +248,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
         </div>
     </div>
+</main>
 
-    <script src="../assets/bootstrap/js/bootstrap.bundle.min.js"></script>
-</body>
-
-</html>
+<?php include '../includes/footer.php'; ?>
